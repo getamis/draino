@@ -50,7 +50,7 @@ func NewNodeWatch(c kubernetes.Interface, rs ...cache.ResourceEventHandler) *Nod
 	}
 	i := cache.NewSharedInformer(lw, &core.Node{}, 30*time.Minute)
 	for _, r := range rs {
-		i.AddEventHandler(r)
+		i.AddEventHandler(r) // nolint: errcheck
 	}
 	return &NodeWatch{i}
 }
