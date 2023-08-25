@@ -49,11 +49,24 @@ jobs:
       - checkout
       - setup_remote_docker
       - run:
-          name: Build and Push
+          name: Build and Push Image
           command: |
-            ./scripts/build.sh
             echo "$DOCKER_PASSWORD" | docker login quay.io -u "$DOCKER_USERNAME" --password-stdin
-            ./scripts/push.sh
+            docker build -t quay.io/amis/draino:$(git rev-parse --short HEAD) .
+            docker push quay.io/amis/draino:$(git rev-parse --short HEAD)
+
+  push-release:
+    executor: go-docker
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Push Release Image
+          command: |
+            echo "$DOCKER_PASSWORD" | docker login quay.io -u "$DOCKER_USERNAME" --password-stdin
+            docker pull quay.io/amis/draino:$(git rev-parse --short HEAD)
+            docker tag quay.io/amis/draino:$(git rev-parse --short HEAD) quay.io/amis/draino:$(git describe --exact-match --tags)
+            docker push quay.io/amis/draino:$(git describe --exact-match --tags)
 
 workflows:
   version: 2
@@ -70,5 +83,9 @@ workflows:
           filters:
             branches:
               only: master
+  release:
+    jobs:
+      - push-release:
+          filters:
             tags:
-              only: /^v\d+\.\d+\.\d+.*$/
+              only: /^v\d+\.\d+\.\d+/
