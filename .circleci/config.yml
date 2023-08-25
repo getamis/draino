@@ -52,7 +52,7 @@ jobs:
           name: Build and Push
           command: |
             ./scripts/build.sh
-            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            echo "$DOCKER_PASSWORD" | docker login quay.io -u "$DOCKER_USERNAME" --password-stdin
             ./scripts/push.sh
 
 workflows:
