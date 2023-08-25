@@ -1,45 +1,64 @@
-dryRun: false
+# The desired number of pod replicas for the deployment.
+replicaCount: 2
 
-extraArgs: {}
-
-conditions: {}
-
-replicaCount: 1
-
+# Container image configuration.
 image:
-  repository: planetlabs/draino
-  tag: 450a853
+  repository: quay.io/amis/draino
+  tag: v0.1.1
   pullPolicy: IfNotPresent
 
+# When set to true, draino operates in a mode that does not make any changes.
+dryRun: false
+
+# Additional arguments for the Draino container.
+# More information can be found in the Draino's README.
+# https://github.com/getamis/draino/blob/master/README.md#usage
+extraArgs: {}
+  # allow-force-delete: null
+  # debug: null
+  # evict-statefulset-pods: null
+  # evict-emptydir-pods: null
+  # evict-unreplicated-pods: null
+  # ignore-safe-to-evict-annotation: null
+  # eviction-headroom: "10m"
+  # max-grace-period: "1m"
+conditions: {}
+  # - ContainerRuntimeUnhealthy
+  # - KernelDeadlock
+  # - FrequentKubeletRestart
+  # - FrequentContainerdRestart
+
+# Resources allocation (limits and requests) for the Draino container.
 resources:
   limits:
     cpu: 100m
     memory: 128Mi
   requests:
-    cpu: 100m
+    cpu: 10m
     memory: 128Mi
 
-# Add these annotations to all pods
+# Annotations to be added to all Draino pods.
 podAnnotations: {}
-  # name: value
-  # prometheus.io/scrape: 'true'
-  # prometheus.io/port: '9102'
 
-# Add these labels to all pods
+# Labels to be added to all Draino pods.
 podLabels: {}
-  # name: value
 
+# RBAC (Role-Based Access Control) configuration for Draino.
 rbac:
-  create: true
+  create: true # If true, a new service account and related RBAC roles will be created.
+  # Name of an existing service account to use (if 'create' is set to false).
   serviceAccountName:
 
+# Node selector for scheduling Draino pods.
 nodeSelector: {}
 
+# Tolerations for the Draino pods, allowing them to be scheduled onto nodes with matching taints.
 tolerations: []
 
+# Affinity rules for scheduling Draino pods.
 affinity: {}
 
-# Security Context policies for pods
+# Security context for the Draino pods.
 # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
 securityContext:
   fsGroup: 101
@@ -47,6 +66,27 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 100
 
+# Security context for the Draino container.
 containerSecurityContext:
   privileged: false
   readOnlyRootFilesystem: true
+
+# Configuration for creating a ServiceMonitor resource for Prometheus.
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+  annotations: {}
+
+# Configuration for creating a PrometheusRule resource.
+prometheusRule:
+  enabled: false
+  rules:
+    - alert: DrainoNodeDrainScheduled
+      labels:
+        severity: critical
+      annotations:
+        summary: Draino scheduled a node drain
+        description: Draino has scheduled a node drain, which will be executed shortly.
+      expr: increase(draino_drain_scheduled_nodes_total{result="succeeded"}[15m]) > 1

@@ -1,16 +1,25 @@
 ---
+# Source: draino/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  labels: {component: draino}
   name: draino
-  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: draino
+    helm.sh/chart: draino-0.2.0
+    app.kubernetes.io/instance: draino
+    app.kubernetes.io/managed-by: Helm
 ---
+# Source: draino/templates/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels: {component: draino}
   name: draino
+  labels:
+    app.kubernetes.io/name: draino
+    helm.sh/chart: draino-0.2.0
+    app.kubernetes.io/instance: draino
+    app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups: ['']
   resources: [events]
@@ -20,52 +29,123 @@ rules:
   verbs: [get, watch, list, update]
 - apiGroups: ['']
   resources: [nodes/status]
-  verbs: [patch]
+  verbs: [patch, update]
 - apiGroups: ['']
   resources: [pods]
-  verbs: [get, watch, list]
+  verbs: [get, watch, list, delete]
 - apiGroups: ['']
   resources: [pods/eviction]
   verbs: [create]
-- apiGroups: [extensions]
+- apiGroups: [apps]
   resources: [daemonsets]
   verbs: [get, watch, list]
+- apiGroups: ['*']
+  resources: [statefulsets]
+  verbs: [get]
+- apiGroups: ['']
+  resources: [endpoints]
+  verbs: [get, create, update]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list", "create", "update", "delete", "watch"]
 ---
+# Source: draino/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  labels: {component: draino}
   name: draino
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: draino}
+  labels:
+    app.kubernetes.io/name: draino
+    helm.sh/chart: draino-0.2.0
+    app.kubernetes.io/instance: draino
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: draino
 subjects:
-- {kind: ServiceAccount, name: draino, namespace: kube-system}
+  - kind: ServiceAccount
+    name: draino
+    namespace: default
 ---
+# Source: draino/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: draino
+  labels:
+    app.kubernetes.io/name: draino
+    helm.sh/chart: draino-0.2.0
+    app.kubernetes.io/instance: draino
+    app.kubernetes.io/managed-by: Helm
+spec:
+  ports:
+    - name: metrics
+      port: 10002
+  selector:
+    app.kubernetes.io/name: draino
+    app.kubernetes.io/instance: draino
+---
+# Source: draino/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels: {component: draino}
   name: draino
-  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: draino
+    helm.sh/chart: draino-0.2.0
+    app.kubernetes.io/instance: draino
+    app.kubernetes.io/managed-by: Helm
 spec:
-  # Draino does not currently support locking/master election, so you should
-  # only run one draino at a time. Draino won't start draining nodes immediately
-  # so it's usually safe for multiple drainos to exist for a brief period of
-  # time.
-  replicas: 1
+  replicas: 2
   selector:
-    matchLabels: {component: draino}
+    matchLabels:
+      app.kubernetes.io/name: draino
+      app.kubernetes.io/instance: draino
   template:
     metadata:
-      labels: {component: draino}
-      name: draino
-      namespace: kube-system
+      labels:
+        app.kubernetes.io/name: draino
+        app.kubernetes.io/instance: draino
     spec:
+      priorityClassName: system-cluster-critical
       containers:
-      # You'll want to change these labels and conditions to suit your deployment.
-      - command: [/draino, --dry-run, --node-label=draino-enabled=true, BadCondition, ReallyBadCondition]
-        image: planetlabs/draino:5e07e93
-        livenessProbe:
-          httpGet: {path: /healthz, port: 10002}
-          initialDelaySeconds: 30
-        name: draino
+        - name: draino
+          image: "quay.io/amis/draino:v0.1.1"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 10002
+          command:
+            - /draino
+          livenessProbe:
+            initialDelaySeconds: 30
+            httpGet:
+              path: /healthz
+              port: 10002
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          securityContext:
+            privileged: false
+            readOnlyRootFilesystem: true
       serviceAccountName: draino
+      securityContext:
+        fsGroup: 101
+        runAsGroup: 101
+        runAsNonRoot: true
+        runAsUser: 100
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - draino
+              topologyKey: kubernetes.io/hostname
