@@ -1,0 +1,74 @@
+version: 2.1
+
+executors:
+  go-docker:
+    docker:
+      - image: circleci/golang:1.20
+
+jobs:
+  go-tests:
+    executor: go-docker
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Execute Tests
+          command: ./scripts/test.sh
+      - run:
+          name: Codecov
+          command: bash <(curl -s https://codecov.io/bash)
+
+  go-lint:
+    executor: go-docker
+    steps:
+      - checkout
+      - run:
+          name: Install golangci-lint
+          command: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.24.0
+      - run:
+          name: Lint
+          command: GOGC=10 ./bin/golangci-lint run -j 4 --timeout 5m --exclude "\.pb.*\.go" --exclude "_strings\.go" --exclude "_test\.go" --exclude "not checked.+Close" ./...
+
+  helm-check:
+    executor: go-docker
+    steps:
+      - checkout
+      - run:
+          name: Install Helm and kubeval
+          command: |
+            curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+            curl -LO https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+            tar xf kubeval-linux-amd64.tar.gz
+      - run:
+          name: Helm Template Check
+          command: helm template ./helm/draino/ | ./kubeval --strict
+
+  push:
+    executor: go-docker
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build and Push
+          command: |
+            ./scripts/build.sh
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            ./scripts/push.sh
+
+workflows:
+  version: 2
+  test-and-push:
+    jobs:
+      - go-tests
+      - go-lint
+      - helm-check
+      - push:
+          requires:
+            - go-tests
+            - go-lint
+            - helm-check
+          filters:
+            branches:
+              only: master
+            tags:
+              only: /^v\d+\.\d+\.\d+.*$/
