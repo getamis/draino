@@ -111,12 +111,20 @@ $ kubectl -n kube-system exec -it ${DRAINO_POD} -- apk add curl
 $ kubectl -n kube-system exec -it ${DRAINO_POD} -- curl http://localhost:10002/metrics
 # HELP draino_cordoned_nodes_total Number of nodes cordoned.
 # TYPE draino_cordoned_nodes_total counter
-draino_cordoned_nodes_total{result="succeeded"} 2
-draino_cordoned_nodes_total{result="failed"} 1
+draino_cordoned_nodes_total{result="failed"} 0
+draino_cordoned_nodes_total{result="succeeded"} 0
+# HELP draino_drain_scheduled_nodes_total Number of nodes drain scheduled.
+# TYPE draino_drain_scheduled_nodes_total counter
+draino_drain_scheduled_nodes_total{result="failed"} 0
+draino_drain_scheduled_nodes_total{result="succeeded"} 1
 # HELP draino_drained_nodes_total Number of nodes drained.
 # TYPE draino_drained_nodes_total counter
+draino_drained_nodes_total{result="failed"} 0
 draino_drained_nodes_total{result="succeeded"} 1
-draino_drained_nodes_total{result="failed"} 1
+# HELP draino_uncordoned_nodes_total Number of nodes uncordoned.
+# TYPE draino_uncordoned_nodes_total counter
+draino_uncordoned_nodes_total{result="failed"} 0
+draino_uncordoned_nodes_total{result="succeeded"} 0
 ```
 
 ### Events

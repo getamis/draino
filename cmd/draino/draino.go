@@ -23,11 +23,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"contrib.go.opencensus.io/exporter/prometheus"
 	"github.com/julienschmidt/httprouter"
 	"github.com/oklog/run"
-	"go.opencensus.io/stats/view"
-	"go.opencensus.io/tag"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"gopkg.in/alecthomas/kingpin.v2"
 	client "k8s.io/client-go/kubernetes"
@@ -37,6 +36,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/planetlabs/draino/internal/kubernetes"
+	"github.com/planetlabs/draino/internal/metrics"
 )
 
 // Default leader election settings.
@@ -45,6 +45,22 @@ const (
 	DefaultLeaderElectionRenewDeadline time.Duration = 10 * time.Second
 	DefaultLeaderElectionRetryPeriod   time.Duration = 2 * time.Second
 )
+
+func init() {
+	// Initialize the counters with label values
+	initializeCounter(metrics.NodesCordoned, "succeeded")
+	initializeCounter(metrics.NodesCordoned, "failed")
+	initializeCounter(metrics.NodesUncordoned, "succeeded")
+	initializeCounter(metrics.NodesUncordoned, "failed")
+	initializeCounter(metrics.NodesDrained, "succeeded")
+	initializeCounter(metrics.NodesDrained, "failed")
+	initializeCounter(metrics.NodesDrainScheduled, "succeeded")
+	initializeCounter(metrics.NodesDrainScheduled, "failed")
+}
+
+func initializeCounter(counter *prometheus.CounterVec, labelValue string) {
+	counter.WithLabelValues(labelValue).Add(0)
+}
 
 func main() {
 	var (
@@ -84,44 +100,8 @@ func main() {
 	// this is required to make all packages using klog write to stderr instead of tmp files
 	klog.InitFlags(nil)
 
-	var (
-		nodesCordoned = &view.View{
-			Name:        "cordoned_nodes_total",
-			Measure:     kubernetes.MeasureNodesCordoned,
-			Description: "Number of nodes cordoned.",
-			Aggregation: view.Count(),
-			TagKeys:     []tag.Key{kubernetes.TagResult},
-		}
-		nodesUncordoned = &view.View{
-			Name:        "uncordoned_nodes_total",
-			Measure:     kubernetes.MeasureNodesUncordoned,
-			Description: "Number of nodes uncordoned.",
-			Aggregation: view.Count(),
-			TagKeys:     []tag.Key{kubernetes.TagResult},
-		}
-		nodesDrained = &view.View{
-			Name:        "drained_nodes_total",
-			Measure:     kubernetes.MeasureNodesDrained,
-			Description: "Number of nodes drained.",
-			Aggregation: view.Count(),
-			TagKeys:     []tag.Key{kubernetes.TagResult},
-		}
-		nodesDrainScheduled = &view.View{
-			Name:        "drain_scheduled_nodes_total",
-			Measure:     kubernetes.MeasureNodesDrainScheduled,
-			Description: "Number of nodes scheduled for drain.",
-			Aggregation: view.Count(),
-			TagKeys:     []tag.Key{kubernetes.TagResult},
-		}
-	)
-
-	kingpin.FatalIfError(view.Register(nodesCordoned, nodesUncordoned, nodesDrained, nodesDrainScheduled), "cannot create metrics")
-	p, err := prometheus.NewExporter(prometheus.Options{Namespace: kubernetes.Component})
-	kingpin.FatalIfError(err, "cannot export metrics")
-	view.RegisterExporter(p)
-
 	web := &httpRunner{l: *listen, h: map[string]http.Handler{
-		"/metrics": p,
+		"/metrics": promhttp.Handler(),
 		"/healthz": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { r.Body.Close() }), // nolint:errcheck
 	}}
 

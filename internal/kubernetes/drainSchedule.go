@@ -1,19 +1,18 @@
 package kubernetes
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
 	"go.uber.org/zap"
 	core "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+
+	"github.com/planetlabs/draino/internal/metrics"
 )
 
 const (
@@ -130,14 +129,12 @@ func (d *DrainSchedules) newSchedule(node *v1.Node, when time.Time) *schedule {
 	sched.timer = time.AfterFunc(time.Until(when), func() {
 		log := d.logger.With(zap.String("node", node.GetName()))
 		nr := &core.ObjectReference{Kind: "Node", Name: node.GetName(), UID: types.UID(node.GetName())}
-		tags, _ := tag.New(context.Background(), tag.Upsert(TagNodeName, node.GetName())) // nolint:gosec
 		d.eventRecorder.Event(nr, core.EventTypeWarning, eventReasonDrainStarting, "Draining node")
 		if err := d.drainer.Drain(node); err != nil {
 			sched.finish = time.Now()
 			sched.setFailed()
 			log.Info("Failed to drain", zap.Error(err))
-			tags, _ = tag.New(tags, tag.Upsert(TagResult, tagResultFailed)) // nolint:gosec
-			stats.Record(tags, MeasureNodesDrained.M(1))
+			metrics.NodesDrained.WithLabelValues(tagResultFailed).Inc()
 			d.eventRecorder.Eventf(nr, core.EventTypeWarning, eventReasonDrainFailed, "Draining failed: %v", err)
 			if err := RetryWithTimeout(
 				func() error {
@@ -152,8 +149,7 @@ func (d *DrainSchedules) newSchedule(node *v1.Node, when time.Time) *schedule {
 		}
 		sched.finish = time.Now()
 		log.Info("Drained")
-		tags, _ = tag.New(tags, tag.Upsert(TagResult, tagResultSucceeded)) // nolint:gosec
-		stats.Record(tags, MeasureNodesDrained.M(1))
+		metrics.NodesDrained.WithLabelValues(tagResultSucceeded).Inc()
 		d.eventRecorder.Event(nr, core.EventTypeWarning, eventReasonDrainSucceeded, "Drained node")
 		if err := RetryWithTimeout(
 			func() error {
