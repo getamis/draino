@@ -1,4 +1,17 @@
-apiVersion: v1
-description: draino chart
+apiVersion: v2
 name: draino
-version: 0.1.0
+description: A Helm chart for the Draino Kubernetes node drainer
+version: 0.2.0
+appVersion: v0.1.1
+home: https://github.com/getamis/draino
+sources:
+  - https://github.com/getamis/draino
+maintainers:
+  - name: Relk Li
+    email: relk@maicoin.com
+
+keywords:
+  - draino
+  - node
+  - kubernetes
+  - node problem detector
