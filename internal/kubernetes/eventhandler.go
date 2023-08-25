@@ -17,18 +17,17 @@ and limitations under the License.
 package kubernetes
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
-	"go.opencensus.io/stats"
-	"go.opencensus.io/tag"
 	"go.uber.org/zap"
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+
+	"github.com/planetlabs/draino/internal/metrics"
 )
 
 const (
@@ -56,17 +55,6 @@ const (
 	drainRetryAnnotationValue = "true"
 
 	drainoConditionsAnnotationKey = "draino.planet.com/conditions"
-)
-
-// Opencensus measurements.
-var (
-	MeasureNodesCordoned       = stats.Int64("draino/nodes_cordoned", "Number of nodes cordoned.", stats.UnitDimensionless)
-	MeasureNodesUncordoned     = stats.Int64("draino/nodes_uncordoned", "Number of nodes uncordoned.", stats.UnitDimensionless)
-	MeasureNodesDrained        = stats.Int64("draino/nodes_drained", "Number of nodes drained.", stats.UnitDimensionless)
-	MeasureNodesDrainScheduled = stats.Int64("draino/nodes_drainScheduled", "Number of nodes drain scheduled.", stats.UnitDimensionless)
-
-	TagNodeName, _ = tag.NewKey("node_name")
-	TagResult, _   = tag.NewKey("result")
 )
 
 // A DrainingResourceEventHandler cordons and drains any added or updated nodes.
@@ -229,21 +217,18 @@ func parseConditionsFromAnnotation(n *core.Node) []SuppliedCondition {
 
 func (h *DrainingResourceEventHandler) uncordon(n *core.Node) {
 	log := h.logger.With(zap.String("node", n.GetName()))
-	tags, _ := tag.New(context.Background(), tag.Upsert(TagNodeName, n.GetName())) // nolint:gosec
 	nr := &core.ObjectReference{Kind: "Node", Name: n.GetName(), UID: types.UID(n.GetName())}
 
 	log.Debug("Uncordoning")
 	h.eventRecorder.Event(nr, core.EventTypeWarning, eventReasonUncordonStarting, "Uncordoning node")
 	if err := h.cordonDrainer.Uncordon(n, removeAnnotationMutator); err != nil {
 		log.Info("Failed to uncordon", zap.Error(err))
-		tags, _ = tag.New(tags, tag.Upsert(TagResult, tagResultFailed)) // nolint:gosec
-		stats.Record(tags, MeasureNodesUncordoned.M(1))
+		metrics.NodesUncordoned.WithLabelValues(tagResultFailed).Inc()
 		h.eventRecorder.Eventf(nr, core.EventTypeWarning, eventReasonUncordonFailed, "Uncordoning failed: %v", err)
 		return
 	}
 	log.Info("Uncordoned")
-	tags, _ = tag.New(tags, tag.Upsert(TagResult, tagResultSucceeded)) // nolint:gosec
-	stats.Record(tags, MeasureNodesUncordoned.M(1))
+	metrics.NodesUncordoned.WithLabelValues(tagResultSucceeded).Inc()
 	h.eventRecorder.Event(nr, core.EventTypeWarning, eventReasonUncordonSucceeded, "Uncordoned node")
 }
 
@@ -253,7 +238,6 @@ func removeAnnotationMutator(n *core.Node) {
 
 func (h *DrainingResourceEventHandler) cordon(n *core.Node, badConditions []SuppliedCondition) {
 	log := h.logger.With(zap.String("node", n.GetName()))
-	tags, _ := tag.New(context.Background(), tag.Upsert(TagNodeName, n.GetName())) // nolint:gosec
 	// Events must be associated with this object reference, rather than the
 	// node itself, in order to appear under `kubectl describe node` due to the
 	// way that command is implemented.
@@ -264,14 +248,12 @@ func (h *DrainingResourceEventHandler) cordon(n *core.Node, badConditions []Supp
 	h.eventRecorder.Event(nr, core.EventTypeWarning, eventReasonCordonStarting, "Cordoning node")
 	if err := h.cordonDrainer.Cordon(n, conditionAnnotationMutator(badConditions)); err != nil {
 		log.Info("Failed to cordon", zap.Error(err))
-		tags, _ = tag.New(tags, tag.Upsert(TagResult, tagResultFailed)) // nolint:gosec
-		stats.Record(tags, MeasureNodesCordoned.M(1))
+		metrics.NodesCordoned.WithLabelValues(tagResultFailed).Inc()
 		h.eventRecorder.Eventf(nr, core.EventTypeWarning, eventReasonCordonFailed, "Cordoning failed: %v", err)
 		return
 	}
 	log.Info("Cordoned")
-	tags, _ = tag.New(tags, tag.Upsert(TagResult, tagResultSucceeded)) // nolint:gosec
-	stats.Record(tags, MeasureNodesCordoned.M(1))
+	metrics.NodesCordoned.WithLabelValues(tagResultSucceeded).Inc()
 	h.eventRecorder.Event(nr, core.EventTypeWarning, eventReasonCordonSucceeded, "Cordoned node")
 }
 
@@ -291,7 +273,6 @@ func conditionAnnotationMutator(conditions []SuppliedCondition) func(*core.Node)
 // drain schedule the draining activity
 func (h *DrainingResourceEventHandler) scheduleDrain(n *core.Node) {
 	log := h.logger.With(zap.String("node", n.GetName()))
-	tags, _ := tag.New(context.Background(), tag.Upsert(TagNodeName, n.GetName())) // nolint:gosec
 	nr := &core.ObjectReference{Kind: "Node", Name: n.GetName(), UID: types.UID(n.GetName())}
 	log.Debug("Scheduling drain")
 	when, err := h.drainScheduler.Schedule(n)
@@ -300,14 +281,12 @@ func (h *DrainingResourceEventHandler) scheduleDrain(n *core.Node) {
 			return
 		}
 		log.Info("Failed to schedule the drain activity", zap.Error(err))
-		tags, _ = tag.New(tags, tag.Upsert(TagResult, tagResultFailed)) // nolint:gosec
-		stats.Record(tags, MeasureNodesDrainScheduled.M(1))
+		metrics.NodesDrainScheduled.WithLabelValues(tagResultFailed).Inc()
 		h.eventRecorder.Eventf(nr, core.EventTypeWarning, eventReasonDrainSchedulingFailed, "Drain scheduling failed: %v", err)
 		return
 	}
 	log.Info("Drain scheduled ", zap.Time("after", when))
-	tags, _ = tag.New(tags, tag.Upsert(TagResult, tagResultSucceeded)) // nolint:gosec
-	stats.Record(tags, MeasureNodesDrainScheduled.M(1))
+	metrics.NodesDrainScheduled.WithLabelValues(tagResultSucceeded).Inc()
 	h.eventRecorder.Eventf(nr, core.EventTypeWarning, eventReasonDrainScheduled, "Will drain node after %s", when.Format(time.RFC3339Nano))
 }
 
