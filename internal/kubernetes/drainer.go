@@ -19,9 +19,11 @@ package kubernetes
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/planetlabs/draino/internal/aws"
 	"go.uber.org/zap"
 	core "k8s.io/api/core/v1"
 	policy "k8s.io/api/policy/v1beta1"
@@ -113,6 +115,7 @@ type APICordonDrainer struct {
 	evictionHeadroom time.Duration
 	skipDrain        bool
 	allowForceDelete bool
+	asgManager       *aws.ASGManager
 }
 
 // SuppliedCondition defines the condition will be watched.
@@ -173,6 +176,13 @@ func WithAllowForceDelete(b bool) APICordonDrainerOption {
 	}
 }
 
+// WithASGManager configures a APICordonDrainer to use the supplied
+func WithASGManager(asgManager *aws.ASGManager) APICordonDrainerOption {
+	return func(d *APICordonDrainer) {
+		d.asgManager = asgManager
+	}
+}
+
 // NewAPICordonDrainer returns a CordonDrainer that cordons and drains nodes via
 // the Kubernetes API.
 func NewAPICordonDrainer(c kubernetes.Interface, ao ...APICordonDrainerOption) *APICordonDrainer {
@@ -184,6 +194,7 @@ func NewAPICordonDrainer(c kubernetes.Interface, ao ...APICordonDrainerOption) *
 		evictionHeadroom: DefaultEvictionOverhead,
 		skipDrain:        DefaultSkipDrain,
 		allowForceDelete: DefaultAllowForceDelete,
+		asgManager:       nil,
 	}
 	for _, o := range ao {
 		o(d)
@@ -331,6 +342,17 @@ func (d *APICordonDrainer) Drain(n *core.Node) error {
 		}
 	}
 	d.l.Info("Node drained", zap.String("node", n.GetName()))
+	// ASGManager will set the instance to unhealthy
+	if d.asgManager != nil {
+		// Provider ID format: aws:///ap-southeast-1a/i-02ac8adc4913aea26
+		providerId := n.Spec.ProviderID
+		// Get the instance ID by splitting the provider ID
+		instanceId := strings.Split(providerId, "/")[len(strings.Split(providerId, "/"))-1]
+
+		if err := d.asgManager.SetASGInstanceUnhealthy(instanceId); err != nil {
+			return errors.Wrap(err, "cannot set ASG instance unhealthy")
+		}
+	}
 	return nil
 }
 

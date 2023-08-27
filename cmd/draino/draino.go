@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog"
 
+	"github.com/planetlabs/draino/internal/aws"
 	"github.com/planetlabs/draino/internal/kubernetes"
 	"github.com/planetlabs/draino/internal/metrics"
 )
@@ -93,6 +94,8 @@ func main() {
 		protectedPodAnnotations      = app.Flag("protected-pod-annotation", "Protect pods with this annotation from eviction. May be specified multiple times.").PlaceHolder("KEY[=VALUE]").Strings()
 		ingoreSafeToEvictAnnotations = app.Flag("ignore-safe-to-evict-annotation", "Ignore the cluster-autoscaler.kubernetes.io/safe-to-evict=false annotation.").Bool()
 
+		awsSetUnhealthyOnDrain = app.Flag("aws-set-unhealthy-on-drain", "Marks AWS ASG instances as unhealthy during draining.").Default("false").Bool()
+
 		conditions = app.Arg("node-conditions", "Nodes for which any of these conditions are true will be cordoned and drained.").Required().Strings()
 	)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
@@ -116,6 +119,13 @@ func main() {
 		log.Info("web server is running", zap.String("listen", *listen))
 		kingpin.FatalIfError(await(web), "error serving")
 	}()
+
+	// Create an ASGManager if awsSetUnhealthyOnDrain is true
+	var asgManager *aws.ASGManager
+	if *awsSetUnhealthyOnDrain {
+		log.Info("Initializing AWS ASG Manager to mark instances as unhealthy during drain.")
+		asgManager = aws.NewASGManager(log)
+	}
 
 	c, err := kubernetes.BuildConfigFromFlags(*apiserver, *kubecfg)
 	kingpin.FatalIfError(err, "cannot create Kubernetes client configuration")
@@ -149,6 +159,7 @@ func main() {
 			kubernetes.WithPodFilter(kubernetes.NewPodFilters(pf...)),
 			kubernetes.WithAPICordonDrainerLogger(log),
 			kubernetes.WithAllowForceDelete(*allowForceDelete),
+			kubernetes.WithASGManager(asgManager), // Pass the ASGManager if initialized
 		),
 		kubernetes.NewEventRecorder(cs),
 		kubernetes.WithLogger(log),
