@@ -80,9 +80,6 @@ workflows:
             - go-tests
             - go-lint
             - helm-check
-          filters:
-            branches:
-              only: master
   release:
     jobs:
       - push-release:
