@@ -13,6 +13,9 @@ type ASGManager struct {
 }
 
 func NewASGManager(logger *zap.Logger, region string) *ASGManager {
+	if region == "" {
+		logger.Fatal("No AWS region specified")
+	}
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(region),
 	})
