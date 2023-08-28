@@ -94,6 +94,7 @@ func main() {
 		protectedPodAnnotations      = app.Flag("protected-pod-annotation", "Protect pods with this annotation from eviction. May be specified multiple times.").PlaceHolder("KEY[=VALUE]").Strings()
 		ingoreSafeToEvictAnnotations = app.Flag("ignore-safe-to-evict-annotation", "Ignore the cluster-autoscaler.kubernetes.io/safe-to-evict=false annotation.").Bool()
 
+		awsRegion              = app.Flag("aws-region", "AWS region to use for AWS API calls.").String()
 		awsSetUnhealthyOnDrain = app.Flag("aws-set-unhealthy-on-drain", "Marks AWS ASG instances as unhealthy during draining.").Default("false").Bool()
 
 		conditions = app.Arg("node-conditions", "Nodes for which any of these conditions are true will be cordoned and drained.").Required().Strings()
@@ -124,7 +125,7 @@ func main() {
 	var asgManager *aws.ASGManager
 	if *awsSetUnhealthyOnDrain {
 		log.Info("Initializing AWS ASG Manager to mark instances as unhealthy during drain.")
-		asgManager = aws.NewASGManager(log)
+		asgManager = aws.NewASGManager(log, *awsRegion)
 	}
 
 	c, err := kubernetes.BuildConfigFromFlags(*apiserver, *kubecfg)

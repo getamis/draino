@@ -12,12 +12,14 @@ type ASGManager struct {
 	Logger  *zap.Logger
 }
 
-func NewASGManager(logger *zap.Logger) *ASGManager {
-	sess, err := session.NewSession(&aws.Config{})
+func NewASGManager(logger *zap.Logger, region string) *ASGManager {
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String(region),
+	})
 	if err != nil {
 		logger.Fatal("Error creating AWS session:", zap.Error(err))
 	}
-	logger.Info("AWS session created")
+	logger.Info("AWS session created", zap.String("region", region))
 	return &ASGManager{Session: sess, Logger: logger}
 }
 
