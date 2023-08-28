@@ -14,6 +14,6 @@ roleRef:
   name: {{ template "draino.fullname" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ template "draino.fullname" . }}
+    name: {{ include "draino.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 {{- end -}}

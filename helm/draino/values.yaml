@@ -4,7 +4,7 @@ replicaCount: 2
 # Container image configuration.
 image:
   repository: quay.io/amis/draino
-  tag: v0.1.1
+  tag: v0.2.0
   pullPolicy: IfNotPresent
 
 # When set to true, draino operates in a mode that does not make any changes.
@@ -46,8 +46,12 @@ podLabels: {}
 # RBAC (Role-Based Access Control) configuration for Draino.
 rbac:
   create: true # If true, a new service account and related RBAC roles will be created.
-  # Name of an existing service account to use (if 'create' is set to false).
-  serviceAccountName:
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true # If true, a new service account and related RBAC roles will be created.
+    annotations: {}
+    # Name of an existing service account to use (if 'create' is set to false).
+    name:
 
 # Node selector for scheduling Draino pods.
 nodeSelector: {}
