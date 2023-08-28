@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/antonmedv/expr v1.14.3
+	github.com/aws/aws-sdk-go v1.44.332
 	github.com/go-test/deep v1.0.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/oklog/run v1.1.0
@@ -38,6 +39,7 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect

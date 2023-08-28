@@ -56,6 +56,8 @@ Flags:
                                  Protect pods with this annotation from eviction. May be specified multiple times.
       --ignore-safe-to-evict-annotation
                                  Ignore the "cluster-autoscaler.kubernetes.io/safe-to-evict=false" annotation.
+      --aws-set-unhealthy-on-drain
+                                 Set the AWS ASG instance to unhealthy when draining a node. Requires the AWS IAM policy "autoscaling:SetInstanceHealth".
 
 Args:
   <node-conditions>  Nodes for which any of these conditions are true will be cordoned and drained.
