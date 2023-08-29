@@ -58,7 +58,7 @@ Flags:
                                  Ignore the "cluster-autoscaler.kubernetes.io/safe-to-evict=false" annotation.
       --aws-region=AWS-REGION    AWS region to use for AWS ASG instance health status updates.
       --aws-set-unhealthy-on-drain
-                                 Set the AWS ASG instance to unhealthy when draining a node. Requires the AWS IAM policy "autoscaling:SetInstanceHealth".
+                                 Set the AWS ASG instance to unhealthy after node drained. Requires the AWS IAM policy "autoscaling:SetInstanceHealth".
 
 Args:
   <node-conditions>  Nodes for which any of these conditions are true will be cordoned and drained.
@@ -95,11 +95,8 @@ Keep the following in mind before deploying Draino:
 
 ## Deployment
 
-Draino is automatically built from master and pushed to the [Docker Hub](https://hub.docker.com/r/planetlabs/draino/).
-Builds are tagged `planetlabs/draino:$(git rev-parse --short HEAD)`.
-
-**Note:** As of September, 2020 we no longer publish `planetlabs/draino:latest`
-in order to encourage explicit and pinned releases.
+Draino is automatically built from master and pushed to the [Quay.io](https://quay.io/repository/amis/draino?tab=tags).
+Builds are tagged `quay.io/amis/draino:$(git rev-parse --short HEAD)`.
 
 An [example Kubernetes deployment manifest](manifest.yml) is provided.
 
