@@ -24,6 +24,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/planetlabs/draino/internal/aws"
+	"github.com/planetlabs/draino/internal/metrics"
 	"go.uber.org/zap"
 	core "k8s.io/api/core/v1"
 	policy "k8s.io/api/policy/v1beta1"
@@ -309,6 +310,7 @@ func IsMarkedForDrain(n *core.Node) bool {
 // Drain the supplied node. Evicts the node of all but mirror and DaemonSet pods.
 func (d *APICordonDrainer) Drain(n *core.Node) error {
 	d.l.Info("Draining node", zap.String("node", n.GetName()))
+	metrics.NodesDraining.WithLabelValues(tagResultSucceeded).Inc()
 	// Do nothing if draining is not enabled.
 	if d.skipDrain {
 		d.l.Debug("Skipping drain because draining is disabled")

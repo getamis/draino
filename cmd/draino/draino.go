@@ -53,6 +53,8 @@ func init() {
 	initializeCounter(metrics.NodesCordoned, "failed")
 	initializeCounter(metrics.NodesUncordoned, "succeeded")
 	initializeCounter(metrics.NodesUncordoned, "failed")
+	initializeCounter(metrics.NodesDraining, "succeeded")
+	initializeCounter(metrics.NodesDraining, "failed")
 	initializeCounter(metrics.NodesDrained, "succeeded")
 	initializeCounter(metrics.NodesDrained, "failed")
 	initializeCounter(metrics.NodesDrainScheduled, "succeeded")

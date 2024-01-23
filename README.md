@@ -121,6 +121,10 @@ draino_drain_scheduled_nodes_total{result="succeeded"} 1
 # TYPE draino_drained_nodes_total counter
 draino_drained_nodes_total{result="failed"} 0
 draino_drained_nodes_total{result="succeeded"} 1
+# HELP draino_draining_nodes Number of nodes draining.
+# TYPE draino_draining_nodes counter
+draino_draining_nodes{result="failed"} 0
+draino_draining_nodes{result="succeeded"} 1
 # HELP draino_uncordoned_nodes_total Number of nodes uncordoned.
 # TYPE draino_uncordoned_nodes_total counter
 draino_uncordoned_nodes_total{result="failed"} 0
@@ -197,3 +201,22 @@ Draino can be run in dry run mode using the `--dry-run` flag.
 
 ### Cordon Only
 Draino can also optionally be run in a mode where the nodes are only cordoned, and not drained. This can be achieved by using the `--skip-drain` flag.
+
+
+## Local Development
+```
+aws-vault exec <profile> -- \
+  go run ./cmd/draino \
+    --kubeconfig=<config> \
+    --allow-force-delete \
+    --aws-region=<region> \
+    --aws-set-unhealthy-on-drain \
+    --debug \
+    --evict-emptydir-pods \
+    --evict-statefulset-pods \
+    --evict-unreplicated-pods \
+    --eviction-headroom=10m \
+    --ignore-safe-to-evict-annotation \
+    --max-grace-period=1m \
+    KernelDeadlock ContainerRuntimeUnhealthy
+``````
